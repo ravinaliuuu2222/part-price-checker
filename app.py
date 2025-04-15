@@ -3,8 +3,8 @@ import streamlit as st
 
 # 讀取 Excel 文件
 def load_excel(file):
-    # 讀取 A 檔案中的 BH（組合料號）和 AA（價格），以及 B 檔案中的 P（料號）和 F（價格）
-    df = pd.read_excel(file, usecols=[59, 3])  # 59 是 A.xlsx 中的 BH，3 是 B.xlsx 中的 P
+    # 讀取 A 檔案中的 AA（價格欄位）和 BH（料號欄位），以及 B 檔案中的 P（料號欄位）和 F（價格欄位）
+    df = pd.read_excel(file, usecols=[26, 59])  # 26 是 A.xlsx 中的 AA（價格），59 是 A.xlsx 中的 BH（料號）
     return df
 
 # 比對料號和價格
