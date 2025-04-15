@@ -1,41 +1,60 @@
 import pandas as pd
 import streamlit as st
+import re
 
 # 讀取 Excel 文件
 def load_excel(file):
-    # 讀取 A 檔案中的 AA（價格欄位）和 BH（料號欄位），以及 B 檔案中的 P（料號欄位）和 F（價格欄位）
-    df = pd.read_excel(file, usecols=[26, 59])  # 26 是 A.xlsx 中的 AA（價格），59 是 A.xlsx 中的 BH（料號）
+    df = pd.read_excel(file, usecols=[26, 59], skiprows=8)
+    df.columns = ['單價', '料號']
+    
+    # 解析 BH 欄資料，提取料號與價格
+    df['料號'] = df['料號'].astype(str).str.extract(r'([A-Z0-9]{10,})')
+    df['金額'] = df['單價'].astype(str).str.extract(r'([0-9.]+)USD')[0].astype(float)
+    
     return df
 
-# 比對料號和價格
+# 比對資料並顯示結果
 def compare_prices(df_a, df_b):
-    # 根據 A 檔案的 BH 欄位與 B 檔案的 P 欄位比對料號，並比對價格
-    matched = pd.merge(df_a, df_b, left_on='Unnamed: 59', right_on='MAT_NO', how='inner')
-    return matched
+    df_merge = pd.merge(df_a, df_b, left_on='料號', right_on='P', how='left')
+    df_merge['是否一致'] = df_merge['金額'].round(2) == df_merge['F'].round(2)
+    
+    # 若找不到對應資料，顯示 'N'
+    df_merge['料號'] = df_merge['料號'].fillna('N')
+    
+    return df_merge
 
 # Streamlit 介面設置
 def main():
-    st.title("料號價格核對工具")
+    st.title('料號價格核對工具')
     
-    # 上傳 A 檔案（包含 BH 和 AA 欄位）
-    uploaded_a = st.file_uploader("請上傳 A 檔案 (含 BH 和 AA 欄位)", type="xlsx")
-    if uploaded_a is not None:
-        df_a = load_excel(uploaded_a)
-        st.write("A 檔案資料：")
+    # 上傳 A 檔案（含 BH 和 AA 欄位）
+    uploaded_file_a = st.file_uploader('請上傳 A.xlsx（含 BH 和 AA 欄位）', type='xlsx')
+    # 上傳 B 檔案（含 P 和 F 欄位）
+    uploaded_file_b = st.file_uploader('請上傳 B.xlsx（含 P 和 F 欄位）', type='xlsx')
+    
+    if uploaded_file_a and uploaded_file_b:
+        # 讀取資料
+        df_a = load_excel(uploaded_file_a)
+        df_b = pd.read_excel(uploaded_file_b, usecols=['P', 'F'])  # 只讀取 P 欄和 F 欄
+        
+        # 顯示資料
+        st.write('A 檔資料：')
         st.dataframe(df_a)
-    
-    # 上傳 B 檔案（包含 P 和 F 欄位）
-    uploaded_b = st.file_uploader("請上傳 B 檔案 (含 P 和 F 欄位)", type="xlsx")
-    if uploaded_b is not None:
-        df_b = load_excel(uploaded_b)
-        st.write("B 檔案資料：")
+        st.write('B 檔資料：')
         st.dataframe(df_b)
-    
-    if uploaded_a is not None and uploaded_b is not None:
+        
         # 比對價格
-        matched = compare_prices(df_a, df_b)
-        st.write("比對結果：")
-        st.dataframe(matched)
+        df_result = compare_prices(df_a, df_b)
+        st.write('比對結果：')
+        st.dataframe(df_result)
 
-if __name__ == "__main__":
+        # 提供下載功能
+        @st.cache_data
+        def convert_df(df):
+            return df.to_excel(index=False, engine='openpyxl')
+        
+        xlsx = convert_df(df_result)
+        st.download_button('📥 下載比對結果', xlsx, file_name='比對結果.xlsx')
+
+if __name__ == '__main__':
     main()
